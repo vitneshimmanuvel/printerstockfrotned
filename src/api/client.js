@@ -122,7 +122,8 @@ export const api = {
   getSheetColumns: (params) => request(`/sheet/columns${buildQuery(params)}`),
   createSheetColumn: (body) => request('/sheet/columns', { method: 'POST', body }),
   updateSheetColumn: (id, body) => request(`/sheet/columns/${id}`, { method: 'PUT', body }),
-  reorderSheetColumns: (orderedIds) => request('/sheet/columns/reorder', { method: 'PUT', body: { orderedIds } }),
+  reorderSheetColumns: (orderedIds, orderedKeys, sync_store_ids) =>
+    request('/sheet/columns/reorder', { method: 'PUT', body: { orderedIds, orderedKeys, sync_store_ids } }),
   deleteSheetColumn: (id, params) => request(`/sheet/columns/${id}${buildQuery(params)}`, { method: 'DELETE' }),
   getSheetEntries: (params) => request(`/sheet/entries${buildQuery(params)}`),
   createSheetEntry: (body) => request('/sheet/entries', { method: 'POST', body }),
@@ -133,6 +134,8 @@ export const api = {
   getAdminRechargeSheet: (params) => request(`/admin-recharge-sheet${buildQuery(params)}`),
   addAdminRechargeColumn: (body) => request('/admin-recharge-sheet/columns', { method: 'POST', body }),
   updateAdminRechargeColumn: (id, body) => request(`/admin-recharge-sheet/columns/${id}`, { method: 'PUT', body }),
+  reorderAdminRechargeColumns: (orderedIds) =>
+    request('/admin-recharge-sheet/columns/reorder', { method: 'PUT', body: { orderedIds } }),
   deleteAdminRechargeColumn: (id) => request(`/admin-recharge-sheet/columns/${id}`, { method: 'DELETE' }),
   addAdminRechargeRow: (body) => request('/admin-recharge-sheet/rows', { method: 'POST', body }),
   updateAdminRechargeRow: (id, body) => request(`/admin-recharge-sheet/rows/${id}`, { method: 'PUT', body }),

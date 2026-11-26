@@ -38,6 +38,8 @@ export default function AdminRechargeSheet({ open, onClose }) {
 
   const [colEditMode, setColEditMode] = useState(false);
   const [colModal, setColModal] = useState(false);
+  const [dragColId, setDragColId] = useState(null);
+  const [dragOverColId, setDragOverColId] = useState(null);
   const [newCol, setNewCol] = useState({
     label: '',
     column_type: 'currency',
@@ -204,15 +206,15 @@ export default function AdminRechargeSheet({ open, onClose }) {
     }
   };
 
-  const handleRenameColumn = async (col) => {
-    if (!colEditMode) return;
-    const nextName = window.prompt('Rename column:', col.label);
-    if (!nextName || !nextName.trim() || nextName.trim() === col.label) return;
+  const handleInlineRenameColumn = async (col, nextValue) => {
+    const trimmed = String(nextValue || '').trim();
+    if (!trimmed || trimmed === col.label) return;
+    setColumns((prev) => prev.map((c) => (c.id === col.id ? { ...c, label: trimmed } : c)));
     try {
-      await api.updateAdminRechargeColumn(col.id, { label: nextName.trim() });
-      await loadSheet();
+      await api.updateAdminRechargeColumn(col.id, { label: trimmed });
     } catch (err) {
       showToast(err.message, 'error');
+      loadSheet();
     }
   };
 
@@ -223,6 +225,29 @@ export default function AdminRechargeSheet({ open, onClose }) {
       await loadSheet();
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  const handleDropColumn = async (targetColId) => {
+    const sourceId = dragColId;
+    setDragColId(null);
+    setDragOverColId(null);
+    if (!sourceId || sourceId === targetColId) return;
+
+    const fromIdx = columns.findIndex((c) => c.id === sourceId);
+    const toIdx = columns.findIndex((c) => c.id === targetColId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reordered = [...columns];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    setColumns(reordered);
+
+    try {
+      await api.reorderAdminRechargeColumns(reordered.map((c) => c.id));
+    } catch (err) {
+      showToast(err.message, 'error');
+      loadSheet();
     }
   };
 
@@ -282,33 +307,79 @@ export default function AdminRechargeSheet({ open, onClose }) {
             <thead>
               <tr>
                 <th className="sticky-col-left" style={{ width: 52, textAlign: 'center' }}>#</th>
-                {columns.map((col) => (
-                  <th
-                    key={col.id}
-                    className={`col-accent-${col.color || 'cyan'} ${['currency', 'number', 'formula'].includes(col.column_type) ? 'num-cell' : ''}`}
-                    style={{ minWidth: (col.width || 145) + 24 }}
-                  >
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <span
-                        onClick={() => colEditMode && handleRenameColumn(col)}
-                        style={{ cursor: colEditMode ? 'pointer' : 'default', textDecoration: colEditMode ? 'underline dashed' : 'none' }}
-                      >
-                        {col.label}
-                      </span>
-                      {col.column_type === 'formula' && <span style={{ fontSize: 10.5, opacity: 0.8 }}>fx</span>}
-                      {colEditMode && (
-                        <button
-                          type="button"
-                          className="col-minus-btn"
-                          onClick={() => handleRemoveColumn(col)}
-                          title={`Remove ${col.label}`}
-                        >
-                          −
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
+                {columns.map((col) => {
+                  const isDragging = dragColId === col.id;
+                  const isDragOver = dragOverColId === col.id && dragColId !== col.id;
+                  return (
+                    <th
+                      key={col.id}
+                      draggable
+                      onDragStart={(e) => {
+                        setDragColId(col.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', String(col.id));
+                      }}
+                      onDragOver={(e) => {
+                        if (!dragColId) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverColId !== col.id) setDragOverColId(col.id);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverColId === col.id) setDragOverColId(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleDropColumn(col.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragColId(null);
+                        setDragOverColId(null);
+                      }}
+                      className={`col-accent-${col.color || 'cyan'} ${['currency', 'number', 'formula'].includes(col.column_type) ? 'num-cell' : ''} col-draggable ${isDragging ? 'col-dragging' : ''} ${isDragOver ? 'col-drag-over' : ''}`}
+                      style={{ minWidth: (col.width || 145) + 24 }}
+                      title="Drag to move column"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                        {colEditMode ? (
+                          <>
+                            <span className="col-drag-grip" title="Drag to move column">⋮⋮</span>
+                            <input
+                              key={`acol-edit-${col.id}-${col.label}`}
+                              type="text"
+                              className="col-header-edit-input"
+                              defaultValue={col.label}
+                              draggable={false}
+                              onDragStart={(e) => e.preventDefault()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={(e) => handleInlineRenameColumn(col, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.currentTarget.blur();
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="col-minus-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveColumn(col);
+                              }}
+                              title={`Remove ${col.label}`}
+                            >
+                              −
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ cursor: 'grab' }}>{col.label}</span>
+                            {col.column_type === 'formula' && <span style={{ fontSize: 10.5, opacity: 0.8 }}>fx</span>}
+                          </>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
                 <th className="sticky-col-right" style={{ width: colEditMode ? 112 : 84, textAlign: 'center' }}>
                   {colEditMode ? (
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>

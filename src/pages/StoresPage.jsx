@@ -72,6 +72,16 @@ export default function StoresPage() {
   // Per-store Clients state
   const [clients, setClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
+  const [addClientModal, setAddClientModal] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({
+    name: '',
+    phone: '',
+    aadhaar_number: '',
+    pan_number: '',
+    bank_account: '',
+    address: '',
+    notes: '',
+  });
   const [clientVault, setClientVault] = useState(null);
   const [docType, setDocType] = useState('Aadhaar Card (Front)');
   const [docTitle, setDocTitle] = useState('');
@@ -239,6 +249,28 @@ export default function StoresPage() {
   };
 
   // ===== STORE CLIENT VAULT HANDLERS =====
+  const handleSaveStoreClient = async (e) => {
+    e.preventDefault();
+    try {
+      await api.createClient({
+        store_id: selectedStore.id,
+        name: newClientForm.name,
+        phone: newClientForm.phone,
+        aadhaar_number: newClientForm.aadhaar_number,
+        pan_number: newClientForm.pan_number,
+        address: newClientForm.address,
+        notes: newClientForm.notes,
+        extra_details: { bank_account: newClientForm.bank_account || '' },
+      });
+      showToast(`Added "${newClientForm.name}" to ${selectedStore.name}`, 'success');
+      setAddClientModal(false);
+      setNewClientForm({ name: '', phone: '', aadhaar_number: '', pan_number: '', bank_account: '', address: '', notes: '' });
+      await Promise.all([loadStoreDetails(selectedStore), loadStores()]);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   const openClientVault = async (clientId) => {
     setSelectedAssetIds([]);
     try {
@@ -418,7 +450,12 @@ export default function StoresPage() {
                   onChange={(e) => setClientSearch(e.target.value)}
                 />
               </div>
-              <span className="badge badge-blue" style={{ padding: '6px 11px' }}>{clients.length} Client(s) in {selectedStore.name}</span>
+              <div className="toolbar-group">
+                <span className="badge badge-blue" style={{ padding: '6px 11px' }}>{clients.length} Client(s)</span>
+                <button className="btn btn-primary btn-sm" onClick={() => setAddClientModal(true)}>
+                  <IconPlus size={14} /> Add Customer to {selectedStore.name}
+                </button>
+              </div>
             </div>
 
             {clients.length === 0 ? (
@@ -580,6 +617,68 @@ export default function StoresPage() {
           </div>
         )}
 
+        {/* Add Customer inside Store Modal */}
+        {addClientModal && (
+          <div className="modal-backdrop" onClick={() => setAddClientModal(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div className="modal-title">Add Customer — {selectedStore.name}</div>
+                <button className="btn btn-ghost btn-icon" onClick={() => setAddClientModal(false)}><IconClose size={18} /></button>
+              </div>
+              <form onSubmit={handleSaveStoreClient}>
+                <div className="modal-body">
+                  <div className="form-grid-2">
+                    <div className="form-group">
+                      <label className="form-label">Customer Name *</label>
+                      <input className="input" value={newClientForm.name} onChange={(e) => setNewClientForm((p) => ({ ...p, name: e.target.value }))} required />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Mobile Number * (Numbers Only)</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="input"
+                        value={newClientForm.phone}
+                        onKeyDown={(e) => blockNonNumericKey(e, false)}
+                        onChange={(e) => setNewClientForm((p) => ({ ...p, phone: sanitizeNumber(e.target.value, false) }))}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="form-grid-3">
+                    <div className="form-group">
+                      <label className="form-label">Aadhaar Number</label>
+                      <input className="input" value={newClientForm.aadhaar_number} onChange={(e) => setNewClientForm((p) => ({ ...p, aadhaar_number: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">PAN Number</label>
+                      <input className="input" value={newClientForm.pan_number} onChange={(e) => setNewClientForm((p) => ({ ...p, pan_number: e.target.value.toUpperCase() }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Bank Account / IFSC</label>
+                      <input className="input" value={newClientForm.bank_account} onChange={(e) => setNewClientForm((p) => ({ ...p, bank_account: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="form-grid-2">
+                    <div className="form-group">
+                      <label className="form-label">Address</label>
+                      <input className="input" value={newClientForm.address} onChange={(e) => setNewClientForm((p) => ({ ...p, address: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Notes</label>
+                      <input className="input" value={newClientForm.notes} onChange={(e) => setNewClientForm((p) => ({ ...p, notes: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setAddClientModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Save Customer</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Client Assets Modal inside Store */}
         {clientVault && (
           <div className="modal-backdrop" onClick={() => setClientVault(null)}>
@@ -651,9 +750,9 @@ export default function StoresPage() {
     <div>
       <div className="toolbar">
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Stores & Branches</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Stores</h2>
           <p className="card-subtitle">
-            Click any store to view and manage its dedicated <strong>Store Stock</strong> and <strong>Store Clients</strong>
+            Click any store to manage its <strong>Store Stock</strong> and <strong>Store Clients</strong>
           </p>
         </div>
         {hasPerm('stores') && (

@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { id: 'sheet', label: 'Live Sheet', perm: 'sheet', section: 'Operations', Icon: IconSheet },
   { id: 'services', label: 'Services Builder', perm: 'services', section: 'Operations', Icon: IconServices },
   { id: 'clients', label: 'Customer Details', perm: 'clients', section: 'Operations', Icon: IconClients },
-  { id: 'stores', label: 'Stores / Branches', perm: 'stores', section: 'Company & Admin', Icon: IconStore },
+  { id: 'stores', label: 'Stores', perm: 'stores', section: 'Company & Admin', Icon: IconStore },
   { id: 'users', label: 'Users & Access', perm: 'users', section: 'Company & Admin', Icon: IconShield },
   { id: 'activity', label: 'Activity Logs', perm: 'activity_logs', section: 'Company & Admin', Icon: IconActivity },
 ];
@@ -49,7 +49,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="login-page">
-        <div style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>Loading SevaDesk Pro...</div>
+        <div style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>Loading Internal System...</div>
       </div>
     );
   }
@@ -103,10 +103,10 @@ export default function App() {
 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="brand-mark">SD</div>
+          <div className="brand-mark">IS</div>
           <div>
-            <div className="brand-title">SevaDesk Pro</div>
-            <div className="brand-sub">Multi-Store e-Seva Suite</div>
+            <div className="brand-title">Internal System</div>
+            <div className="brand-sub">Multi-Store Operations</div>
           </div>
         </div>
 

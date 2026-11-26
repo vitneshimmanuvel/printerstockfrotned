@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import {
   blockNonNumericKey,
-  digitsToWords,
   formatAadhaar,
   formatDate,
   formatINR,
@@ -13,15 +12,14 @@ import {
 import { IconClose, IconEdit, IconFile, IconPlus, IconSearch, IconTrash, IconUpload } from '../components/Icons';
 
 const DOC_TYPES = [
-  'Aadhaar Card (Front)',
-  'Aadhaar Card (Back)',
+  'Aadhaar Card',
   'PAN Card',
+  'Bank Passbook',
   'Passport Photo',
   'Ration / Smart Card',
   'Income Certificate',
   'Community Certificate',
   'Nativity Certificate',
-  'Bank Passbook',
   'Voter ID',
   'Marksheet / TC',
   'Application Receipt',
@@ -39,58 +37,56 @@ const FIELD_TYPES = [
   { value: 'yesno', label: 'Yes / No' },
 ];
 
-const EMPTY_CLIENT = (storeId) => ({
-  store_id: storeId || '',
+const EMPTY_CLIENT = {
   name: '',
   phone: '',
-  alt_phone: '',
   email: '',
   address: '',
   aadhaar_number: '',
-  aadhaar_words: '',
   pan_number: '',
+  bank_account: '',
   ration_card: '',
   dob: '',
   notes: '',
   extra_details: {},
-  custom_items: [], // [{ title, data_type, value }] per-client custom fields!
-});
+  custom_items: [], // [{ title, data_type, value }]
+};
+
+function isImageDoc(doc) {
+  if (!doc) return false;
+  return doc.resource_type === 'image' && String(doc.file_format || '').toLowerCase() !== 'pdf';
+}
 
 export default function ClientsPage() {
-  const { user, stores, selectedStoreId, hasPerm } = useAuth();
+  const { user, hasPerm } = useAuth();
   const { showToast } = useToast();
 
   const [clients, setClients] = useState([]);
   const [defaultFields, setDefaultFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mobileSearch, setMobileSearch] = useState('');
-  const [filterStore, setFilterStore] = useState('');
 
-  // Customer Details Default Field Settings modal
+  // Universal Customer Detail Settings modal
   const [settingsModal, setSettingsModal] = useState(false);
   const [newField, setNewField] = useState({ title: '', data_type: 'text', options: '', is_required: false });
 
-  // Add/Edit client modal
+  // Add/Edit Customer modal (with inline Aadhaar / PAN / Bank Passbook Cloudinary upload & preview!)
   const [clientModal, setClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
-  const [form, setForm] = useState(EMPTY_CLIENT(''));
+  const [form, setForm] = useState(EMPTY_CLIENT);
+  const [existingSlotDocs, setExistingSlotDocs] = useState({ aadhaar: null, pan: null, bank: null });
+  const [pendingFiles, setPendingFiles] = useState({ aadhaar: null, pan: null, bank: null });
+  const [pendingPreviews, setPendingPreviews] = useState({ aadhaar: '', pan: '', bank: '' });
   const [saving, setSaving] = useState(false);
 
   // Customer Card Detail & Selectable Cloudinary Assets Modal
   const [vaultModal, setVaultModal] = useState(null);
   const [loadingVault, setLoadingVault] = useState(false);
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
-  const [docType, setDocType] = useState('Aadhaar Card (Front)');
+  const [docType, setDocType] = useState('Aadhaar Card');
   const [docTitle, setDocTitle] = useState('');
   const [docFile, setDocFile] = useState(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
-
-  const effectiveStoreFilter = filterStore || selectedStoreId;
-
-  const defaultStore = useMemo(() => {
-    if (selectedStoreId && selectedStoreId !== 'all') return selectedStoreId;
-    return user?.store_id ? String(user.store_id) : stores[0] ? String(stores[0].id) : '';
-  }, [selectedStoreId, user, stores]);
 
   const loadDefaultFields = useCallback(async () => {
     try {
@@ -105,7 +101,7 @@ export default function ClientsPage() {
     setLoading(true);
     try {
       const res = await api.getClients({
-        store_id: effectiveStoreFilter,
+        store_id: 'all',
         search: mobileSearch,
       });
       setClients(res.clients || []);
@@ -114,7 +110,7 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveStoreFilter, mobileSearch, showToast]);
+  }, [mobileSearch, showToast]);
 
   useEffect(() => {
     loadDefaultFields();
@@ -125,13 +121,38 @@ export default function ClientsPage() {
     return () => clearTimeout(t);
   }, [loadClients]);
 
-  // ===== CUSTOMER FIELD SETTINGS HANDLERS =====
+  // Filter out bank_account from Universal box since Bank Account Details is now a primary card
+  const universalFields = defaultFields.filter((f) => f.field_key !== 'bank_account');
+
+  const clearPendingPreviews = () => {
+    Object.values(pendingPreviews).forEach((url) => {
+      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+    });
+    setPendingFiles({ aadhaar: null, pan: null, bank: null });
+    setPendingPreviews({ aadhaar: '', pan: '', bank: '' });
+  };
+
+  const handleSelectSlotFile = (slot, file) => {
+    if (pendingPreviews[slot] && pendingPreviews[slot].startsWith('blob:')) {
+      URL.revokeObjectURL(pendingPreviews[slot]);
+    }
+    if (!file) {
+      setPendingFiles((p) => ({ ...p, [slot]: null }));
+      setPendingPreviews((p) => ({ ...p, [slot]: '' }));
+      return;
+    }
+    const previewUrl = file.type && file.type.startsWith('image/') ? URL.createObjectURL(file) : '';
+    setPendingFiles((p) => ({ ...p, [slot]: file }));
+    setPendingPreviews((p) => ({ ...p, [slot]: previewUrl }));
+  };
+
+  // ===== UNIVERSAL CUSTOMER DETAIL SETTINGS HANDLERS =====
   const handleAddDefaultField = async (e) => {
     e.preventDefault();
     if (!newField.title.trim()) return;
     try {
       await api.createClientField(newField);
-      showToast(`Added "${newField.title}" to Customer Details settings`, 'success');
+      showToast(`Added "${newField.title}" to Universal Customer Details`, 'success');
       setNewField({ title: '', data_type: 'text', options: '', is_required: false });
       await loadDefaultFields();
     } catch (err) {
@@ -159,7 +180,7 @@ export default function ClientsPage() {
   };
 
   const handleDeleteDefaultField = async (field) => {
-    if (!window.confirm(`Remove default customer field "${field.title}"?`)) return;
+    if (!window.confirm(`Remove universal customer field "${field.title}"?`)) return;
     try {
       const res = await api.deleteClientField(field.id);
       showToast(res.message || 'Field removed', 'success');
@@ -171,44 +192,54 @@ export default function ClientsPage() {
 
   // ===== ADD / EDIT CUSTOMER HANDLERS =====
   const openCreate = () => {
+    clearPendingPreviews();
+    setExistingSlotDocs({ aadhaar: null, pan: null, bank: null });
     setEditingClient(null);
-    setForm(EMPTY_CLIENT(defaultStore));
+    setForm(EMPTY_CLIENT);
     setClientModal(true);
   };
 
-  const openEdit = (c, e) => {
+  const openEdit = async (c, e) => {
     if (e) e.stopPropagation();
+    clearPendingPreviews();
     const extra = c.extra_details && typeof c.extra_details === 'object' ? { ...c.extra_details } : {};
     const customItems = Array.isArray(extra._custom_items) ? extra._custom_items : [];
+    const bankAccount = extra.bank_account || '';
     delete extra._custom_items;
 
     setEditingClient(c);
     setForm({
-      store_id: c.store_id ? String(c.store_id) : defaultStore,
       name: c.name || '',
       phone: c.phone || '',
-      alt_phone: c.alt_phone || '',
       email: c.email || '',
       address: c.address || '',
       aadhaar_number: c.aadhaar_number || '',
-      aadhaar_words: c.aadhaar_words || digitsToWords(c.aadhaar_number),
       pan_number: c.pan_number || '',
+      bank_account: bankAccount,
       ration_card: c.ration_card || '',
       dob: c.dob || '',
       notes: c.notes || '',
       extra_details: extra,
       custom_items: customItems,
     });
+    setExistingSlotDocs({ aadhaar: null, pan: null, bank: null });
     setClientModal(true);
-  };
 
-  const handleAadhaarChange = (val) => {
-    const formatted = formatAadhaar(val);
-    setForm((p) => ({
-      ...p,
-      aadhaar_number: formatted,
-      aadhaar_words: digitsToWords(formatted),
-    }));
+    // Fetch existing Cloudinary documents so Aadhaar / PAN / Bank Passbook previews show right in the form!
+    try {
+      const res = await api.getClient(c.id);
+      const docs = res.documents || [];
+      setExistingSlotDocs({
+        aadhaar: docs.find((d) => String(d.doc_type || '').toLowerCase().includes('aadhaar')) || null,
+        pan: docs.find((d) => String(d.doc_type || '').toLowerCase().includes('pan')) || null,
+        bank: docs.find((d) => {
+          const t = String(d.doc_type || '').toLowerCase();
+          return t.includes('bank') || t.includes('passbook');
+        }) || null,
+      });
+    } catch {
+      // ignore
+    }
   };
 
   const addPerClientCustomItem = () => {
@@ -238,36 +269,76 @@ export default function ClientsPage() {
     try {
       const cleanCustomItems = (form.custom_items || []).filter((it) => it.title && it.title.trim());
       const payload = {
-        store_id: form.store_id ? Number(form.store_id) : null,
+        store_id: editingClient ? editingClient.store_id : (user?.store_id || null),
         name: form.name,
         phone: form.phone,
-        alt_phone: form.alt_phone,
         email: form.email,
         address: form.address,
         aadhaar_number: form.aadhaar_number,
-        aadhaar_words: form.aadhaar_words,
+        aadhaar_words: '',
         pan_number: form.pan_number,
         ration_card: form.ration_card,
         dob: form.dob,
         notes: form.notes,
         extra_details: {
           ...(form.extra_details || {}),
+          bank_account: form.bank_account || '',
           _custom_items: cleanCustomItems,
         },
       };
 
+      let savedClientId;
       if (editingClient) {
         await api.updateClient(editingClient.id, payload);
-        showToast('Customer updated (and synced with Live Sheet)', 'success');
-        if (vaultModal?.client?.id === editingClient.id) {
-          const refreshed = await api.getClient(editingClient.id);
-          setVaultModal(refreshed);
-        }
+        savedClientId = editingClient.id;
       } else {
-        await api.createClient(payload);
-        showToast('Customer added', 'success');
+        const created = await api.createClient(payload);
+        savedClientId = created.client.id;
       }
+
+      // Upload / Replace Aadhaar, PAN, or Bank Passbook files directly to Cloudinary!
+      const slotMeta = [
+        { key: 'aadhaar', docType: 'Aadhaar Card', title: 'Aadhaar Document' },
+        { key: 'pan', docType: 'PAN Card', title: 'PAN Card' },
+        { key: 'bank', docType: 'Bank Passbook', title: 'Bank Account / Passbook' },
+      ];
+
+      let uploadedCount = 0;
+      for (const slot of slotMeta) {
+        const file = pendingFiles[slot.key];
+        if (!file) continue;
+        // Replace old slot doc if updating
+        if (existingSlotDocs[slot.key]) {
+          try {
+            await api.deleteClientDoc(savedClientId, existingSlotDocs[slot.key].id);
+          } catch {
+            // proceed with upload
+          }
+        }
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('doc_type', slot.docType);
+        fd.append('title', file.name || slot.title);
+        await api.uploadClientDoc(savedClientId, fd);
+        uploadedCount++;
+      }
+
+      showToast(
+        uploadedCount > 0
+          ? `Customer saved & ${uploadedCount} document(s) uploaded to Cloudinary!`
+          : editingClient
+            ? 'Customer updated (synced with Live Sheet)'
+            : 'Customer saved!',
+        'success'
+      );
+
+      clearPendingPreviews();
       setClientModal(false);
+
+      if (vaultModal?.client?.id === savedClientId) {
+        const refreshed = await api.getClient(savedClientId);
+        setVaultModal(refreshed);
+      }
       loadClients();
     } catch (err) {
       showToast(err.message, 'error');
@@ -427,18 +498,80 @@ export default function ClientsPage() {
     );
   };
 
+  const renderSlotPreview = (slotKey, label) => {
+    const pendingFile = pendingFiles[slotKey];
+    const pendingImg = pendingPreviews[slotKey];
+    const existingDoc = existingSlotDocs[slotKey];
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {pendingFile ? (
+          pendingImg ? (
+            <div className="id-doc-thumb">
+              <img src={pendingImg} alt={label} />
+            </div>
+          ) : (
+            <div className="id-doc-thumb" style={{ flexDirection: 'column', gap: 4, padding: 8, textAlign: 'center' }}>
+              <IconFile size={24} />
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: '#2563eb', wordBreak: 'break-all' }}>{pendingFile.name}</span>
+            </div>
+          )
+        ) : existingDoc ? (
+          <a href={existingDoc.cloudinary_url} target="_blank" rel="noreferrer" className="id-doc-thumb" title="Click to open full file">
+            {isImageDoc(existingDoc) ? (
+              <img src={existingDoc.cloudinary_url} alt={existingDoc.title} />
+            ) : (
+              <div style={{ textAlign: 'center', color: '#2563eb' }}>
+                <IconFile size={26} />
+                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>
+                  {(existingDoc.file_format || 'PDF').toUpperCase()} — View
+                </div>
+              </div>
+            )}
+          </a>
+        ) : null}
+
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '6px 10px',
+            borderRadius: 7,
+            border: '1px dashed #94a3b8',
+            background: '#ffffff',
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#1e293b',
+            cursor: 'pointer',
+          }}
+        >
+          <IconUpload size={13} />
+          <span>{pendingFile ? 'Change File' : existingDoc ? `Update ${label}` : `Upload ${label} (PDF / Image)`}</span>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            style={{ display: 'none' }}
+            onChange={(e) => handleSelectSlotFile(slotKey, e.target.files?.[0] || null)}
+          />
+        </label>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="toolbar">
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 700 }}>Customer Details & Assets</h2>
           <p className="card-subtitle">
-            Search by mobile number, configure default customer detail fields, and click any customer card to manage & choose assets
+            Search customers by mobile number, manage universal customer fields, and click any customer card to check & choose assets
           </p>
         </div>
         <div className="toolbar-group">
           <button className="btn btn-secondary" onClick={() => setSettingsModal(true)}>
-            <IconEdit size={14} /> Customer Detail Settings
+            <IconEdit size={14} /> Universal Customer Settings
           </button>
           <button className="btn btn-primary" onClick={openCreate}>
             <IconPlus size={15} /> Add Customer
@@ -446,32 +579,17 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {/* Mobile Number Search & Store Filter */}
+      {/* Mobile Number Search */}
       <div className="toolbar">
-        <div className="toolbar-group">
-          <div className="search-box" style={{ minWidth: 320 }}>
-            <IconSearch size={15} />
-            <input
-              className="input"
-              placeholder="Filter by Mobile Number, Name, Aadhaar or PAN..."
-              value={mobileSearch}
-              onChange={(e) => setMobileSearch(e.target.value)}
-            />
-          </div>
-
-          {hasPerm('view_all_stores') && (
-            <select
-              className="select"
-              style={{ width: 195 }}
-              value={filterStore}
-              onChange={(e) => setFilterStore(e.target.value)}
-            >
-              <option value="">All Stores</option>
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          )}
+        <div className="search-box" style={{ minWidth: 340 }}>
+          <IconSearch size={15} />
+          <input
+            className="input"
+            placeholder="Filter by Mobile Number, Name, Aadhaar or PAN..."
+            value={mobileSearch}
+            onChange={(e) => setMobileSearch(e.target.value)}
+          />
         </div>
-
         <span className="badge badge-blue" style={{ padding: '6px 12px', fontSize: 12.5 }}>
           {clients.length} Customer(s)
         </span>
@@ -488,7 +606,7 @@ export default function ClientsPage() {
         <div className="cards-grid">
           {clients.map((c) => {
             const extra = c.extra_details && typeof c.extra_details === 'object' ? c.extra_details : {};
-            const filledDefaults = defaultFields.filter((f) => extra[f.field_key]).slice(0, 2);
+            const filledDefaults = universalFields.filter((f) => extra[f.field_key]).slice(0, 2);
             return (
               <div key={c.id} className="customer-card" onClick={() => openVault(c.id)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -514,15 +632,15 @@ export default function ClientsPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <span className="badge badge-slate">{c.store_name || 'Main Store'}</span>
                   <span className="badge badge-purple">{c.doc_count} Asset(s)</span>
                   <span className="badge badge-emerald">{c.tx_count} Visits</span>
                 </div>
 
-                {c.aadhaar_number && (
-                  <div style={{ fontSize: 12, background: '#f8fafc', padding: '7px 9px', borderRadius: 7 }}>
-                    <div style={{ fontFamily: 'monospace', fontWeight: 700 }}>Aadhaar: {c.aadhaar_number}</div>
-                    {c.aadhaar_words && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{c.aadhaar_words}</div>}
+                {(c.aadhaar_number || c.pan_number || extra.bank_account) && (
+                  <div style={{ fontSize: 12, background: '#f8fafc', padding: '7px 9px', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {c.aadhaar_number && <div style={{ fontFamily: 'monospace', fontWeight: 700 }}>Aadhaar: {c.aadhaar_number}</div>}
+                    {c.pan_number && <div>PAN: <strong>{c.pan_number}</strong></div>}
+                    {extra.bank_account && <div>Bank: <strong>{extra.bank_account}</strong></div>}
                   </div>
                 )}
 
@@ -546,14 +664,14 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* ===== DEFAULT CUSTOMER DETAIL FIELDS SETTINGS MODAL ===== */}
+      {/* ===== UNIVERSAL CUSTOMER DETAIL SETTINGS MODAL ===== */}
       {settingsModal && (
         <div className="modal-backdrop" onClick={() => setSettingsModal(false)}>
           <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <div className="modal-title">Customer Details Settings (Default Fields for Every Customer)</div>
-                <div className="card-subtitle">Add any field title and data type — it will automatically appear for every customer</div>
+                <div className="modal-title">Universal Customer Detail Settings</div>
+                <div className="card-subtitle">Fields configured here appear automatically for every customer</div>
               </div>
               <button className="btn btn-ghost btn-icon" onClick={() => setSettingsModal(false)}>
                 <IconClose size={18} />
@@ -565,7 +683,7 @@ export default function ClientsPage() {
                 onSubmit={handleAddDefaultField}
                 style={{ padding: 14, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 13.5 }}>+ Add Default Customer Detail Field</div>
+                <div style={{ fontWeight: 700, fontSize: 13.5 }}>+ Add Universal Customer Field</div>
                 <div className="form-grid-3">
                   <div className="form-group">
                     <label className="form-label">Field Title *</label>
@@ -573,7 +691,7 @@ export default function ClientsPage() {
                       className="input"
                       value={newField.title}
                       onChange={(e) => setNewField((p) => ({ ...p, title: e.target.value }))}
-                      placeholder="e.g. Father Name, Passport No, Voter ID, Bank A/C"
+                      placeholder="e.g. Father Name, Passport No, Voter ID"
                       autoFocus
                       required
                     />
@@ -614,7 +732,7 @@ export default function ClientsPage() {
 
                 <div>
                   <button type="submit" className="btn btn-primary btn-sm">
-                    <IconPlus size={14} /> Add Default Field
+                    <IconPlus size={14} /> Add Field
                   </button>
                 </div>
               </form>
@@ -630,7 +748,7 @@ export default function ClientsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {defaultFields.map((f) => (
+                    {universalFields.map((f) => (
                       <tr key={f.id}>
                         <td>
                           <input
@@ -669,8 +787,8 @@ export default function ClientsPage() {
                         </td>
                       </tr>
                     ))}
-                    {defaultFields.length === 0 && (
-                      <tr><td colSpan={4} className="empty-state">No default custom fields yet. Add one above!</td></tr>
+                    {universalFields.length === 0 && (
+                      <tr><td colSpan={4} className="empty-state">No universal fields yet. Add one above!</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -684,7 +802,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* ===== ADD / EDIT CUSTOMER MODAL (CORE + DEFAULT SETTINGS FIELDS + PER-CLIENT CUSTOM FIELDS) ===== */}
+      {/* ===== ADD / EDIT CUSTOMER MODAL (NO STORE, NO AADHAAR WORDS, INLINE AADHAAR/PAN/BANK UPLOADS, PINNED SAVE BUTTON!) ===== */}
       {clientModal && (
         <div className="modal-backdrop" onClick={() => setClientModal(false)}>
           <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -694,6 +812,7 @@ export default function ClientsPage() {
             </div>
             <form onSubmit={saveClient}>
               <div className="modal-body">
+                {/* Row 1: Customer Name + Mobile Number + Date of Birth */}
                 <div className="form-grid-3">
                   <div className="form-group">
                     <label className="form-label">Customer Name *</label>
@@ -712,70 +831,78 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Store</label>
-                    <select
-                      className="select"
-                      value={form.store_id}
-                      onChange={(e) => setForm((p) => ({ ...p, store_id: e.target.value }))}
-                      disabled={!hasPerm('view_all_stores') && Boolean(user?.store_id)}
-                    >
-                      <option value="">Select Store</option>
-                      {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-grid-3">
-                  <div className="form-group">
-                    <label className="form-label">Aadhaar Number</label>
-                    <input
-                      className="input"
-                      inputMode="numeric"
-                      value={form.aadhaar_number}
-                      onChange={(e) => handleAadhaarChange(e.target.value)}
-                      placeholder="XXXX XXXX XXXX"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">PAN Number</label>
-                    <input className="input" value={form.pan_number} onChange={(e) => setForm((p) => ({ ...p, pan_number: e.target.value.toUpperCase() }))} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Ration / Smart Card</label>
-                    <input className="input" value={form.ration_card} onChange={(e) => setForm((p) => ({ ...p, ration_card: e.target.value }))} />
-                  </div>
-                </div>
-
-                <div className="form-grid-3">
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="form-label">Aadhaar Number in Words</label>
-                    <input className="input" value={form.aadhaar_words} onChange={(e) => setForm((p) => ({ ...p, aadhaar_words: e.target.value }))} />
-                  </div>
-                  <div className="form-group">
                     <label className="form-label">Date of Birth</label>
                     <input type="date" className="input" value={form.dob} onChange={(e) => setForm((p) => ({ ...p, dob: e.target.value }))} />
                   </div>
                 </div>
 
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Address</label>
-                    <textarea className="textarea" style={{ minHeight: 54 }} value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
+                {/* Row 2: Aadhaar + Upload | PAN + Upload | Bank Account Details + Upload */}
+                <div className="form-grid-3">
+                  <div className="id-doc-card">
+                    <div className="form-group">
+                      <label className="form-label">Aadhaar Number</label>
+                      <input
+                        className="input"
+                        inputMode="numeric"
+                        value={form.aadhaar_number}
+                        onChange={(e) => setForm((p) => ({ ...p, aadhaar_number: formatAadhaar(e.target.value) }))}
+                        placeholder="XXXX XXXX XXXX"
+                      />
+                    </div>
+                    {renderSlotPreview('aadhaar', 'Aadhaar')}
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Notes</label>
-                    <textarea className="textarea" style={{ minHeight: 54 }} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+
+                  <div className="id-doc-card">
+                    <div className="form-group">
+                      <label className="form-label">PAN Number</label>
+                      <input
+                        className="input"
+                        value={form.pan_number}
+                        onChange={(e) => setForm((p) => ({ ...p, pan_number: e.target.value.toUpperCase() }))}
+                        placeholder="ABCDE1234F"
+                      />
+                    </div>
+                    {renderSlotPreview('pan', 'PAN')}
+                  </div>
+
+                  <div className="id-doc-card">
+                    <div className="form-group">
+                      <label className="form-label">Bank Account Details</label>
+                      <input
+                        className="input"
+                        value={form.bank_account}
+                        onChange={(e) => setForm((p) => ({ ...p, bank_account: e.target.value }))}
+                        placeholder="A/C No, IFSC, Bank Name"
+                      />
+                    </div>
+                    {renderSlotPreview('bank', 'Passbook')}
                   </div>
                 </div>
 
-                {/* Default Customer Detail Fields (from Customer Detail Settings) */}
-                {defaultFields.length > 0 && (
+                {/* Row 3: Ration / Smart Card + Address + Notes */}
+                <div className="form-grid-3">
+                  <div className="form-group">
+                    <label className="form-label">Ration / Smart Card</label>
+                    <input className="input" value={form.ration_card} onChange={(e) => setForm((p) => ({ ...p, ration_card: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Address</label>
+                    <input className="input" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Notes</label>
+                    <input className="input" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+                  </div>
+                </div>
+
+                {/* Universal Customer Details (Configured in Universal Customer Settings) */}
+                {universalFields.length > 0 && (
                   <div style={{ padding: 13, borderRadius: 9, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>
-                      Default Customer Details
+                      Universal Customer Details
                     </div>
                     <div className="form-grid-2">
-                      {defaultFields.map((field) => (
+                      {universalFields.map((field) => (
                         <div key={field.id} className="form-group">
                           <label className="form-label">
                             {field.title} {field.is_required ? '*' : ''}
@@ -789,7 +916,7 @@ export default function ClientsPage() {
                   </div>
                 )}
 
-                {/* Per-Client Custom Detail Rows (Any Title + Any Data Type for THIS Specific Client!) */}
+                {/* Extra Custom Fields for This Specific Customer */}
                 <div style={{ padding: 13, borderRadius: 9, background: '#f5f3ff', border: '1px solid #ddd6fe' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: '#5b21b6' }}>
@@ -847,9 +974,13 @@ export default function ClientsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Always-Visible Pinned Save Footer */}
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setClientModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Customer'}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? 'Saving & Uploading...' : 'Save Customer'}
+                </button>
               </div>
             </form>
           </div>
@@ -867,7 +998,7 @@ export default function ClientsPage() {
                 </div>
                 {vaultModal.client && (
                   <div className="card-subtitle">
-                    Mobile: <strong>{vaultModal.client.phone}</strong> · Store: {vaultModal.client.store_name || 'N/A'}
+                    Mobile: <strong>{vaultModal.client.phone}</strong>
                   </div>
                 )}
               </div>
@@ -896,15 +1027,20 @@ export default function ClientsPage() {
                   <div style={{ padding: 13, borderRadius: 9, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
                     {vaultModal.client.aadhaar_number && (
                       <div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>Aadhaar</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>Aadhaar Number</div>
                         <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{vaultModal.client.aadhaar_number}</div>
-                        {vaultModal.client.aadhaar_words && <div style={{ fontSize: 10.5, color: '#64748b' }}>{vaultModal.client.aadhaar_words}</div>}
                       </div>
                     )}
                     {vaultModal.client.pan_number && (
                       <div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>PAN</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>PAN Number</div>
                         <div style={{ fontWeight: 700 }}>{vaultModal.client.pan_number}</div>
+                      </div>
+                    )}
+                    {vaultModal.client.extra_details?.bank_account && (
+                      <div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>Bank Account Details</div>
+                        <div style={{ fontWeight: 700 }}>{vaultModal.client.extra_details.bank_account}</div>
                       </div>
                     )}
                     {vaultModal.client.ration_card && (
@@ -919,7 +1055,7 @@ export default function ClientsPage() {
                         <div style={{ fontSize: 12.5 }}>{vaultModal.client.address}</div>
                       </div>
                     )}
-                    {defaultFields.map((f) => {
+                    {universalFields.map((f) => {
                       const val = vaultModal.client.extra_details?.[f.field_key];
                       if (!val) return null;
                       return (
@@ -937,12 +1073,12 @@ export default function ClientsPage() {
                     ))}
                   </div>
 
-                  {/* Upload New Asset to Cloudinary */}
+                  {/* Upload Additional Asset to Cloudinary */}
                   <form
                     onSubmit={handleUploadDoc}
                     style={{ padding: 13, borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: 10 }}
                   >
-                    <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 13.5 }}>Upload Customer Asset (Cloudinary)</div>
+                    <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 13.5 }}>Upload Additional Asset (Cloudinary)</div>
                     <div className="form-grid-4">
                       <select className="select" value={docType} onChange={(e) => setDocType(e.target.value)}>
                         {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -996,7 +1132,6 @@ export default function ClientsPage() {
                   ) : (
                     <div className="doc-grid">
                       {vaultModal.documents.map((doc) => {
-                        const isImage = doc.resource_type === 'image' && doc.file_format !== 'pdf';
                         const isChosen = selectedAssetIds.includes(doc.id);
                         return (
                           <div
@@ -1006,7 +1141,7 @@ export default function ClientsPage() {
                             onClick={() => toggleAssetSelect(doc.id)}
                           >
                             <div className="doc-preview">
-                              {isImage ? (
+                              {isImageDoc(doc) ? (
                                 <img src={doc.cloudinary_url} alt={doc.title} />
                               ) : (
                                 <div style={{ textAlign: 'center', color: '#475569' }}>

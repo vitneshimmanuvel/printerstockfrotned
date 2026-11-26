@@ -86,6 +86,8 @@ export default function SheetPage() {
   // Minimal Column Edit Mode (no banner! Just + & Done in header + minus on each column!)
   const [colEditMode, setColEditMode] = useState(false);
   const [colModalOpen, setColModalOpen] = useState(false);
+  const [dragColId, setDragColId] = useState(null);
+  const [dragOverColId, setDragOverColId] = useState(null);
   const [newCol, setNewCol] = useState({
     label: '',
     column_type: 'text',
@@ -583,15 +585,16 @@ export default function SheetPage() {
     }
   };
 
-  const handleQuickRenameColumn = async (col) => {
-    if (!colEditMode || !hasPerm('manage_columns')) return;
-    const next = window.prompt('Rename column:', col.label);
-    if (!next || !next.trim() || next.trim() === col.label) return;
+  const handleInlineRenameColumn = async (col, nextValue) => {
+    const trimmed = String(nextValue || '').trim();
+    if (!trimmed || trimmed === col.label) return;
+    // Optimistic update for snappy editing
+    setColumns((prev) => prev.map((c) => (c.id === col.id ? { ...c, label: trimmed } : c)));
     try {
-      await api.updateSheetColumn(col.id, { label: next.trim(), sync_store_ids: activeStoreIds });
-      await loadSheet();
+      await api.updateSheetColumn(col.id, { label: trimmed, sync_store_ids: activeStoreIds });
     } catch (err) {
       showToast(err.message, 'error');
+      loadSheet();
     }
   };
 
@@ -609,6 +612,37 @@ export default function SheetPage() {
       } catch (fallbackErr) {
         showToast(fallbackErr.message, 'error');
       }
+    }
+  };
+
+  // Drag-and-drop column reordering directly on column headers!
+  const handleDropColumn = async (targetColId) => {
+    const sourceId = dragColId;
+    setDragColId(null);
+    setDragOverColId(null);
+    if (!sourceId || sourceId === targetColId) return;
+
+    const fromIdx = visibleColumns.findIndex((c) => c.id === sourceId);
+    const toIdx = visibleColumns.findIndex((c) => c.id === targetColId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reorderedVisible = [...visibleColumns];
+    const [moved] = reorderedVisible.splice(fromIdx, 1);
+    reorderedVisible.splice(toIdx, 0, moved);
+
+    // Update UI instantly
+    const hiddenCols = columns.filter((c) => c.is_visible === false);
+    setColumns([...reorderedVisible, ...hiddenCols]);
+
+    try {
+      await api.reorderSheetColumns(
+        reorderedVisible.map((c) => c.id),
+        reorderedVisible.map((c) => c.column_key),
+        activeStoreIds
+      );
+    } catch (err) {
+      showToast(err.message, 'error');
+      loadSheet();
     }
   };
 
@@ -991,34 +1025,81 @@ export default function SheetPage() {
           <thead>
             <tr>
               <th className="sticky-col-left" style={{ width: 52, textAlign: 'center' }}>#</th>
-              {visibleColumns.map((col) => (
-                <th
-                  key={col.id}
-                  className={`col-accent-${col.color || 'slate'} ${['currency', 'number', 'formula'].includes(col.column_type) ? 'num-cell' : ''}`}
-                  style={{ minWidth: (col.width || 140) + 28 }}
-                >
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                    <span
-                      onClick={() => colEditMode && handleQuickRenameColumn(col)}
-                      style={{ cursor: colEditMode ? 'pointer' : 'default', textDecoration: colEditMode ? 'underline dashed' : 'none' }}
-                      title={colEditMode ? 'Click to rename' : col.label}
-                    >
-                      {col.label}
-                    </span>
-                    {col.column_type === 'formula' && <span style={{ fontSize: 10.5, opacity: 0.85 }}>fx</span>}
-                    {colEditMode && (
-                      <button
-                        type="button"
-                        className="col-minus-btn"
-                        onClick={() => handleRemoveColumn(col)}
-                        title={`Remove ${col.label}`}
-                      >
-                        −
-                      </button>
-                    )}
-                  </div>
-                </th>
-              ))}
+              {visibleColumns.map((col) => {
+                const canDrag = hasPerm('manage_columns');
+                const isDragging = dragColId === col.id;
+                const isDragOver = dragOverColId === col.id && dragColId !== col.id;
+                return (
+                  <th
+                    key={col.id}
+                    draggable={canDrag}
+                    onDragStart={(e) => {
+                      if (!canDrag) return;
+                      setDragColId(col.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(col.id));
+                    }}
+                    onDragOver={(e) => {
+                      if (!canDrag || !dragColId) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverColId !== col.id) setDragOverColId(col.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverColId === col.id) setDragOverColId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropColumn(col.id);
+                    }}
+                    onDragEnd={() => {
+                      setDragColId(null);
+                      setDragOverColId(null);
+                    }}
+                    className={`col-accent-${col.color || 'slate'} ${['currency', 'number', 'formula'].includes(col.column_type) ? 'num-cell' : ''} ${canDrag ? 'col-draggable' : ''} ${isDragging ? 'col-dragging' : ''} ${isDragOver ? 'col-drag-over' : ''}`}
+                    style={{ minWidth: (col.width || 140) + 28 }}
+                    title={canDrag ? 'Drag to move column' : col.label}
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                      {colEditMode ? (
+                        <>
+                          <span className="col-drag-grip" title="Drag to move column">⋮⋮</span>
+                          <input
+                            key={`col-edit-${col.id}-${col.label}`}
+                            type="text"
+                            className="col-header-edit-input"
+                            defaultValue={col.label}
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => handleInlineRenameColumn(col, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.currentTarget.blur();
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="col-minus-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveColumn(col);
+                            }}
+                            title={`Remove ${col.label}`}
+                          >
+                            −
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ cursor: canDrag ? 'grab' : 'default' }}>{col.label}</span>
+                          {col.column_type === 'formula' && <span style={{ fontSize: 10.5, opacity: 0.85 }}>fx</span>}
+                        </>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
 
               {/* Right-End Sticky Header: Clean "Edit" button -> reveals compact "+" & "Done" right inside header */}
               <th className="sticky-col-right" style={{ width: colEditMode ? 112 : 84, textAlign: 'center' }}>

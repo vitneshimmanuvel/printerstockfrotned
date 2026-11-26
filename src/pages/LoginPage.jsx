@@ -28,10 +28,10 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <div className="brand-mark" style={{ width: 44, height: 44, fontSize: 19 }}>SD</div>
+          <div className="brand-mark" style={{ width: 44, height: 44, fontSize: 19 }}>IS</div>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>SevaDesk Pro</h1>
-            <p style={{ fontSize: 12.5, color: '#64748b' }}>Multi-Store e-Seva, Recharge, DMT & Operations Platform</p>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Internal System</h1>
+            <p style={{ fontSize: 12.5, color: '#64748b' }}>Multi-Store Operations & Management Platform</p>
           </div>
         </div>
 

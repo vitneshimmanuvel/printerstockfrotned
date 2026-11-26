@@ -928,6 +928,14 @@ a {
   overflow: hidden;
 }
 
+.modal > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .modal-lg { max-width: 900px; }
 .modal-xl { max-width: 1060px; }
 .modal-sm { max-width: 460px; }
@@ -939,6 +947,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -948,6 +957,8 @@ a {
 
 .modal-body {
   padding: 18px 20px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -962,6 +973,35 @@ a {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  flex-shrink: 0;
+}
+
+.id-doc-card {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.id-doc-thumb {
+  width: 100%;
+  height: 96px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.id-doc-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ===== TABS ===== */
@@ -1444,6 +1484,58 @@ a {
 .doc-card.asset-selected {
   border: 2px solid var(--primary);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.sheet-table thead th.col-draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.sheet-table thead th.col-draggable:active {
+  cursor: grabbing;
+}
+
+.sheet-table thead th.col-dragging {
+  opacity: 0.45;
+}
+
+.sheet-table thead th.col-drag-over {
+  box-shadow: inset 4px 0 0 #38bdf8, inset -2px 0 0 #38bdf8;
+  filter: brightness(1.18);
+}
+
+.col-header-edit-input {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 5px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 4px 7px;
+  min-width: 90px;
+  width: 100%;
+  max-width: 170px;
+  outline: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.col-header-edit-input:focus {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #ffffff;
+}
+
+.col-drag-grip {
+  cursor: grab;
+  opacity: 0.75;
+  font-size: 13px;
+  letter-spacing: -1px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.col-drag-grip:hover {
+  opacity: 1;
 }
 
 /* ===== RESPONSIVE ===== */
