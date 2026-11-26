@@ -401,7 +401,7 @@ export default function StoresPage() {
                       }}
                     >
                       {item.image_url && (
-                        <div style={{ height: 110, background: '#f1f5f9', overflow: 'hidden' }}>
+                        <div style={{ height: 110, background: 'var(--surface-subtle)', overflow: 'hidden' }}>
                           <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                       )}
@@ -409,12 +409,12 @@ export default function StoresPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                           <div>
                             <div style={{ fontWeight: 700, fontSize: 15 }}>{item.name}</div>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>{item.category} {item.sku ? `· ${item.sku}` : ''}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.category} {item.sku ? `· ${item.sku}` : ''}</div>
                           </div>
                           <span className={`badge ${statusBadge}`}>{statusText}</span>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '9px 11px', borderRadius: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--surface-subtle)', padding: '9px 11px', borderRadius: 8 }}>
                           <div>
                             <div style={{ fontSize: 11, color: '#64748b' }}>Available</div>
                             <div style={{ fontSize: 20, fontWeight: 700 }}>{formatNum(item.quantity)} <span style={{ fontSize: 12, color: '#64748b' }}>{item.unit}</span></div>
@@ -691,7 +691,7 @@ export default function StoresPage() {
                 <button className="btn btn-ghost btn-icon" onClick={() => setClientVault(null)}><IconClose size={18} /></button>
               </div>
               <div className="modal-body">
-                <form onSubmit={handleUploadDoc} style={{ padding: 12, borderRadius: 9, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                <form onSubmit={handleUploadDoc} style={{ padding: 12, borderRadius: 9, background: 'var(--primary-soft)', border: '1px solid var(--border-strong)' }}>
                   <div className="form-grid-4">
                     <select className="select" value={docType} onChange={(e) => setDocType(e.target.value)}>
                       {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -777,7 +777,7 @@ export default function StoresPage() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 9, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--primary-soft)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconStore size={19} />
                   </div>
                   <div>
@@ -797,7 +797,7 @@ export default function StoresPage() {
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, background: '#f8fafc', padding: 10, borderRadius: 8, fontSize: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, background: 'var(--surface-subtle)', padding: 10, borderRadius: 8, fontSize: 12 }}>
                 <div>
                   <div style={{ color: '#64748b', fontSize: 11 }}>Stock Items</div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{s.stock_count ?? 0}</div>

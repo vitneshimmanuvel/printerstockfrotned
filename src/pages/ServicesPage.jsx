@@ -194,7 +194,7 @@ export default function ServicesPage() {
               <div className="card-body" style={{ padding: '12px 15px', flex: 1, display: 'flex', flexDirection: 'column', gap: 9 }}>
                 {sv.description && <p style={{ fontSize: 12.5, color: '#64748b' }}>{sv.description}</p>}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: 12, background: '#f8fafc', padding: 8, borderRadius: 7 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: 12, background: 'var(--surface-subtle)', padding: 8, borderRadius: 7 }}>
                   <div>
                     <div style={{ color: '#64748b', fontSize: 11 }}>Base Charge</div>
                     <div style={{ fontWeight: 700, color: '#059669' }}>{formatINR(sv.default_charge)}</div>
@@ -373,8 +373,8 @@ export default function ServicesPage() {
                 </div>
 
                 {/* Dynamic Custom Input Fields Builder */}
-                <div style={{ padding: 14, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ padding: 14, borderRadius: 10, background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 13.5 }}>Custom Input Fields (Shown when called in Sheet)</div>
                       <div className="form-hint">Name inputs anything you need: Application No, Bank IFSC, Operator, Pages, etc.</div>
@@ -388,15 +388,16 @@ export default function ServicesPage() {
                     {form.custom_fields.map((field, idx) => (
                       <div
                         key={idx}
+                        className="custom-field-row-grid"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '1.4fr 1fr 1.2fr auto auto',
                           gap: 8,
                           alignItems: 'center',
-                          background: '#fff',
+                          background: 'var(--surface)',
                           padding: 8,
                           borderRadius: 7,
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--border)',
                         }}
                       >
                         <input

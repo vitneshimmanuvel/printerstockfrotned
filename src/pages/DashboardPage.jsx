@@ -159,9 +159,9 @@ export default function DashboardPage({ onNavigate }) {
                   style={{
                     background:
                       item.stock_status === 'out_of_stock'
-                        ? '#fff1f2'
+                        ? 'var(--rose-soft)'
                         : item.stock_status === 'low_stock'
-                          ? '#fffbeb'
+                          ? 'var(--amber-soft)'
                           : undefined,
                   }}
                 >
@@ -261,9 +261,9 @@ export default function DashboardPage({ onNavigate }) {
             {services.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
                 {services.slice(0, 5).map((sv, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 9px', background: '#f8fafc', borderRadius: 7 }}>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 9px', background: 'var(--surface-subtle)', borderRadius: 7 }}>
                     <span style={{ fontWeight: 600 }}>{sv.service_name} ({sv.count})</span>
-                    <span style={{ color: '#059669', fontWeight: 700 }}>{formatINR(sv.profit)}</span>
+                    <span style={{ color: 'var(--emerald)', fontWeight: 700 }}>{formatINR(sv.profit)}</span>
                   </div>
                 ))}
               </div>

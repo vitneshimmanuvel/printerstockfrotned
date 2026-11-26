@@ -539,11 +539,11 @@ export default function ClientsPage() {
             gap: 6,
             padding: '6px 10px',
             borderRadius: 7,
-            border: '1px dashed #94a3b8',
-            background: '#ffffff',
+            border: '1px dashed var(--border-strong)',
+            background: 'var(--surface)',
             fontSize: 12,
             fontWeight: 600,
-            color: '#1e293b',
+            color: 'var(--text)',
             cursor: 'pointer',
           }}
         >
@@ -611,8 +611,8 @@ export default function ClientsPage() {
               <div key={c.id} className="customer-card" onClick={() => openVault(c.id)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15.5, color: '#0f172a' }}>{c.name}</div>
-                    <div style={{ color: '#2563eb', fontWeight: 700, fontSize: 14, marginTop: 2 }}>{c.phone}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15.5, color: 'var(--text)' }}>{c.name}</div>
+                    <div style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 14, marginTop: 2 }}>{c.phone}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 3 }}>
                     <button className="btn btn-ghost btn-icon" onClick={(e) => openEdit(c, e)} title="Edit Customer">
@@ -637,7 +637,7 @@ export default function ClientsPage() {
                 </div>
 
                 {(c.aadhaar_number || c.pan_number || extra.bank_account) && (
-                  <div style={{ fontSize: 12, background: '#f8fafc', padding: '7px 9px', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ fontSize: 12, background: 'var(--surface-subtle)', padding: '7px 9px', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {c.aadhaar_number && <div style={{ fontFamily: 'monospace', fontWeight: 700 }}>Aadhaar: {c.aadhaar_number}</div>}
                     {c.pan_number && <div>PAN: <strong>{c.pan_number}</strong></div>}
                     {extra.bank_account && <div>Bank: <strong>{extra.bank_account}</strong></div>}
@@ -681,7 +681,7 @@ export default function ClientsPage() {
             <div className="modal-body">
               <form
                 onSubmit={handleAddDefaultField}
-                style={{ padding: 14, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}
+                style={{ padding: 14, borderRadius: 10, background: 'var(--surface-subtle)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 13.5 }}>+ Add Universal Customer Field</div>
                 <div className="form-grid-3">
@@ -707,7 +707,7 @@ export default function ClientsPage() {
                     </select>
                   </div>
                   <div className="form-group" style={{ justifyContent: 'flex-end' }}>
-                    <label className="perm-check" style={{ background: '#fff' }}>
+                    <label className="perm-check" style={{ background: 'var(--surface)' }}>
                       <input
                         type="checkbox"
                         checked={newField.is_required}
@@ -897,8 +897,8 @@ export default function ClientsPage() {
 
                 {/* Universal Customer Details (Configured in Universal Customer Settings) */}
                 {universalFields.length > 0 && (
-                  <div style={{ padding: 13, borderRadius: 9, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>
+                  <div style={{ padding: 13, borderRadius: 9, background: 'var(--surface-subtle)', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
                       Universal Customer Details
                     </div>
                     <div className="form-grid-2">
@@ -917,9 +917,9 @@ export default function ClientsPage() {
                 )}
 
                 {/* Extra Custom Fields for This Specific Customer */}
-                <div style={{ padding: 13, borderRadius: 9, background: '#f5f3ff', border: '1px solid #ddd6fe' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#5b21b6' }}>
+                <div style={{ padding: 13, borderRadius: 9, background: 'var(--purple-soft)', border: '1px solid var(--border-strong)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9, flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--purple)' }}>
                       Extra Custom Details for This Customer (Title + Data Type)
                     </div>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={addPerClientCustomItem}>
@@ -931,6 +931,7 @@ export default function ClientsPage() {
                     {(form.custom_items || []).map((item, idx) => (
                       <div
                         key={idx}
+                        className="custom-field-row-grid"
                         style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.9fr 1.4fr auto', gap: 8, alignItems: 'center' }}
                       >
                         <input
@@ -1024,7 +1025,7 @@ export default function ClientsPage() {
               ) : (
                 <>
                   {/* Customer Profile + Dynamic Details Summary */}
-                  <div style={{ padding: 13, borderRadius: 9, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
+                  <div style={{ padding: 13, borderRadius: 9, background: 'var(--surface-subtle)', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}>
                     {vaultModal.client.aadhaar_number && (
                       <div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>Aadhaar Number</div>
@@ -1076,9 +1077,9 @@ export default function ClientsPage() {
                   {/* Upload Additional Asset to Cloudinary */}
                   <form
                     onSubmit={handleUploadDoc}
-                    style={{ padding: 13, borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: 10 }}
+                    style={{ padding: 13, borderRadius: 10, background: 'var(--primary-soft)', border: '1px solid var(--border-strong)', display: 'flex', flexDirection: 'column', gap: 10 }}
                   >
-                    <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 13.5 }}>Upload Additional Asset (Cloudinary)</div>
+                    <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13.5 }}>Upload Additional Asset (Cloudinary)</div>
                     <div className="form-grid-4">
                       <select className="select" value={docType} onChange={(e) => setDocType(e.target.value)}>
                         {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}

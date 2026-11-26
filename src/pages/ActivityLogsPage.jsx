@@ -132,7 +132,7 @@ export default function ActivityLogsPage() {
                     onClick={() => setSelectedUserId(isSelected ? 'all' : String(u.id))}
                     style={{
                       cursor: 'pointer',
-                      background: isSelected ? '#eff6ff' : undefined,
+                      background: isSelected ? 'var(--primary-soft)' : undefined,
                     }}
                   >
                     <td>
